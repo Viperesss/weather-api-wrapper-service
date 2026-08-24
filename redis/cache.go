@@ -24,11 +24,8 @@ func NewClient() *Client {
 	}
 }
 
-func (c *Client) GetCache(city string) ([]byte, error) {
-	cacheCtx, cacheCtxCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cacheCtxCancel()
-
-	val, err := c.client.Get(cacheCtx, city).Bytes()
+func (c *Client) Get(ctx context.Context, city string) ([]byte, error) {
+	val, err := c.client.Get(ctx, city).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, nil
@@ -37,14 +34,10 @@ func (c *Client) GetCache(city string) ([]byte, error) {
 	}
 
 	return val, nil
-
 }
 
-func (c *Client) SetCache(city string, body []byte) error {
-	cacheCtx, cacheCtxCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cacheCtxCancel()
-
-	if err := c.client.Set(cacheCtx, city, body, 15*time.Minute).Err(); err != nil {
+func (c *Client) Set(ctx context.Context, city string, body []byte) error {
+	if err := c.client.Set(ctx, city, body, 15*time.Minute).Err(); err != nil {
 		return e.Wrap("set", err)
 	}
 
