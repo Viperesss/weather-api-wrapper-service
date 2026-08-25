@@ -1,16 +1,16 @@
 package weather
 
 import (
-	"net/http"
-	"weather-api-wrapper-service/handler"
+	"encoding/json"
 	"weather-api-wrapper-service/lib/e"
 )
 
-func StartServe(h *handler.Handler) error {
-	http.HandleFunc("/weather", h.HandleWeather)
-	err := http.ListenAndServe("localhost:8080", nil)
-	if err != nil {
-		return e.Wrap("listen and serve: ", err)
+func GetData(body []byte) (WeatherReport, error) {
+	var ww WeatherReport
+
+	if err := json.Unmarshal(body, &ww); err != nil {
+		return WeatherReport{}, e.Wrap("unmarshal body", err)
 	}
-	return nil
+
+	return ww, nil
 }

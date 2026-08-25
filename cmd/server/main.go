@@ -5,8 +5,8 @@ import (
 	"os"
 	"weather-api-wrapper-service/handler"
 	cache "weather-api-wrapper-service/redis"
+	"weather-api-wrapper-service/server"
 	"weather-api-wrapper-service/service"
-	"weather-api-wrapper-service/weather"
 	"weather-api-wrapper-service/weatherAPI"
 
 	"github.com/joho/godotenv"
@@ -29,7 +29,7 @@ func main() {
 
 	handler := handler.NewHandler(service)
 
-	err := weather.StartServe(handler)
+	err := server.StartServe(handler)
 	if err != nil {
 		log.Fatal(err)
 	}

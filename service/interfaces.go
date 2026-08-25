@@ -1,14 +1,17 @@
 package service
 
-import "context"
+import (
+	"context"
+	"weather-api-wrapper-service/weather"
+)
 
 type Api interface {
-	GetWeather(ctx context.Context, city string) ([]byte, error)
+	GetWeather(ctx context.Context, city string) (weather.WeatherReport, error)
 }
 
 type Cache interface {
-	Get(ctx context.Context, city string) ([]byte, error)
-	Set(ctx context.Context, city string, body []byte) error
+	Get(ctx context.Context, city string) (*weather.WeatherReport, error)
+	Set(ctx context.Context, city string, weatherStruct weather.WeatherReport) error
 }
 
 type Service struct {

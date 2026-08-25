@@ -1,4 +1,4 @@
-package handler
+package weather
 
 type WeatherReport struct {
 	Address string `json:"address"`

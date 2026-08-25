@@ -6,17 +6,16 @@ import (
 	"log"
 	"net/http"
 	"time"
-	"weather-api-wrapper-service/lib/e"
 	"weather-api-wrapper-service/service"
 )
 
 type Handler struct {
-	Service service.Service
+	service *service.Service
 }
 
 func NewHandler(s *service.Service) *Handler {
 	return &Handler{
-		Service: *s,
+		service: s,
 	}
 }
 
@@ -27,34 +26,19 @@ func (h *Handler) HandleWeather(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, ctxCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, ctxCancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer ctxCancel()
 
-	body, err := h.Service.GetWeather(ctx, city)
+	weatherStruct, err := h.service.GetWeather(ctx, city)
 	if err != nil {
 		http.Error(w, "failed to get weather", http.StatusBadGateway)
 		log.Println(err)
 		return
 	}
 
-	weatherStruct, err := getData(body)
-	if err != nil {
-		http.Error(w, "failed to get data from request", http.StatusBadGateway)
-		log.Println(err)
-		return
-	}
+	log.Println("Исполнен запрос по городу:", city)
 
 	dataOutput(w, weatherStruct)
-}
-
-func getData(body []byte) (WeatherReport, error) {
-	var ww WeatherReport
-
-	if err := json.Unmarshal(body, &ww); err != nil {
-		return WeatherReport{}, e.Wrap("unmarshal body", err)
-	}
-
-	return ww, nil
 }
 
 func dataOutput(w http.ResponseWriter, body any) {
@@ -64,35 +48,3 @@ func dataOutput(w http.ResponseWriter, body any) {
 		log.Println("encode response:", err)
 	}
 }
-
-// func handleWeather(w http.ResponseWriter, r *http.Request) {
-// 	city := r.URL.Query().Get("city")
-// 	if city == "" {
-// 		http.Error(w, "empty field city", http.StatusBadRequest)
-// 		return
-// 	}
-
-// 	//Service
-
-// 	weatherStruct, err := getData(body)
-// 	if err != nil {
-// 		http.Error(w, "failed to get data from request", http.StatusBadGateway)
-// 		log.Println(err)
-// 		return
-// 	}
-
-// 	dataOutput(w, weatherStruct)
-// }
-
-// package weatherAPI
-
-// type WeatherReport struct {
-// 	Address string `json:"address"`
-// 	Days    []Day  `json:"days"`
-// }
-
-// type Day struct {
-// 	Datetime   string  `json:"datetime"`
-// 	Temp       float64 `json:"temp"`
-// 	Conditions string  `json:"conditions"`
-// }

@@ -9,15 +9,16 @@ import (
 	"net/url"
 	"time"
 	"weather-api-wrapper-service/lib/e"
+	"weather-api-wrapper-service/weather"
 )
 
-type Client struct {
+type client struct {
 	Client *http.Client
 	apiKey string
 }
 
-func NewClient(apiKey string) *Client {
-	return &Client{
+func NewClient(apiKey string) *client {
+	return &client{
 		Client: &http.Client{
 			Timeout: 15 * time.Second,
 		},
@@ -25,17 +26,17 @@ func NewClient(apiKey string) *Client {
 	}
 }
 
-func (c *Client) GetWeather(ctx context.Context, city string) ([]byte, error) {
+func (c *client) GetWeather(ctx context.Context, city string) (weather.WeatherReport, error) {
 	basePath := "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline"
 
 	cityPath, err := url.JoinPath(basePath, city)
 	if err != nil {
-		return nil, e.Wrap("join path", err)
+		return weather.WeatherReport{}, e.Wrap("join path", err)
 	}
 
 	u, err := url.Parse(cityPath)
 	if err != nil {
-		return nil, e.Wrap("parse req to url", err)
+		return weather.WeatherReport{}, e.Wrap("parse req to url", err)
 	}
 
 	// contentType=json
@@ -46,27 +47,32 @@ func (c *Client) GetWeather(ctx context.Context, city string) ([]byte, error) {
 
 	u.RawQuery = q.Encode()
 
-	log.Println("Получен запрос:", u.String())
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, e.Wrap("new request", err)
+		return weather.WeatherReport{}, e.Wrap("new request", err)
 	}
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, e.Wrap("get request", err)
+		return weather.WeatherReport{}, e.Wrap("get request", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("bad response status: %v", resp.StatusCode)
+		return weather.WeatherReport{}, fmt.Errorf("bad response status: %v", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, e.Wrap("read response body", err)
+		return weather.WeatherReport{}, e.Wrap("read response body", err)
 	}
 
-	return body, nil
+	weatherStruct, err := weather.GetData(body)
+	if err != nil {
+		return weather.WeatherReport{}, e.Wrap("get data", err)
+	}
+
+	log.Println("Выполнен запрос во внешний API:", city)
+
+	return weatherStruct, nil
 }
