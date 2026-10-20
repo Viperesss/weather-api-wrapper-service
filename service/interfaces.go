@@ -14,7 +14,12 @@ type Cache interface {
 	Set(ctx context.Context, city string, weatherStruct weather.WeatherReport) error
 }
 
+type InsightGenerator interface {
+	GenerateInsight(ctx context.Context, report weather.WeatherReport, businessContext string) (weather.BusinessInsight, error)
+}
+
 type Service struct {
-	api   Api
-	cache Cache
+	api      Api
+	cache    Cache
+	insights InsightGenerator
 }

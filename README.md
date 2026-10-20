@@ -1,201 +1,123 @@
-# Weather API Wrapper Service
+# Weather Intelligence API
 
-A Go service that provides a local HTTP API for retrieving weather data from the Visual Crossing Weather API.
+An API-first B2B weather intelligence service for turning forecasts into operational risk insights. It combines Visual Crossing weather data with an OpenAI-compatible model endpoint and provides bearer-token authentication for provisioned tenant organizations.
 
-The service uses Redis as a cache to reduce repeated requests to the external API.
+## What it does
 
-## Features
+- Returns cached weather forecasts for a location.
+- Produces structured, AI-generated business impact assessments and recommendations from a forecast and a customer's business context.
+- Authenticates tenant API requests with per-tenant bearer keys.
+- Keeps the weather provider and AI provider credentials on the server.
+- Preserves the original `GET /weather` endpoint for existing clients. New integrations should use the authenticated `/v1` endpoints.
 
-* HTTP endpoint for weather requests
-* Integration with Visual Crossing Weather API
-* Redis caching with a 15-minute TTL
-* Cache-aside strategy
-* JSON responses
-* Environment-based API key configuration
-* Contexts and request timeouts
-* Separate layers for HTTP handling, business logic, external API and caching
-* Interfaces for API and cache abstractions
-* Wrapped errors for easier error tracing
-
-## Architecture
-
-```text
-Client
-  │
-  ▼
-HTTP Handler
-  │
-  ▼
-Service
-  │
-  ├── Redis Cache
-  │      │
-  │      ├── Cache hit ──────► return cached data
-  │      │
-  │      └── Cache miss
-  │
-  ▼
-Visual Crossing API
-  │
-  ▼
-Store weather data in Redis
-  │
-  ▼
-Return weather data
-```
-
-The service follows a cache-aside strategy:
-
-1. The service checks Redis for the requested city.
-2. If cached data exists, it is returned immediately.
-3. If the cache does not contain the requested city, the service requests data from Visual Crossing.
-4. The received weather data is stored in Redis with a 15-minute TTL.
-5. The weather data is returned to the client.
-
-## Project Structure
-
-```text
-weather-api-wrapper-service/
-│
-├── cmd/
-│   └── server/
-│       └── main.go
-│
-├── handler/
-│   └── handler.go
-│
-├── server/
-│   └── server.go
-│
-├── service/
-│   ├── interfaces.go
-│   └── service.go
-│
-├── redis/
-│   └── cache.go
-│
-├── weather/
-│   ├── types.go
-│   └── weather.go
-│
-├── weatherAPI/
-│   └── client.go
-│
-├── lib/
-│   └── e/
-│       └── e.go
-│
-├── .env
-├── .gitignore
-├── go.mod
-└── go.sum
-```
-
-### Package Responsibilities
-
-* `cmd/server` — application entry point and dependency initialization
-* `handler` — HTTP request handling and response encoding
-* `server` — HTTP server configuration and startup
-* `service` — application/business logic and cache-aside flow
-* `redis` — Redis client and cache serialization
-* `weatherAPI` — HTTP client for the Visual Crossing API
-* `weather` — weather data structures and JSON parsing
-* `lib/e` — error wrapping helper
+This repository currently implements the API service and environment-based tenant provisioning. It does not include a customer dashboard, self-service signup, persistent account management, billing, or durable usage metering.
 
 ## Requirements
 
-* Go
-* Redis
-* Visual Crossing API key
+- Go 1.25.4 or later
+- Redis at `localhost:6379`
+- A Visual Crossing API key
+- An API key for an OpenAI-compatible chat-completions provider
 
 ## Configuration
 
-Create a `.env` file in the project root:
+Copy `.env.example` to `.env` and fill in the provider credentials. Set `TENANT_API_KEYS` to one or more comma-separated `tenant-name=secret` pairs. Each secret must be at least 32 characters; generate a unique high-entropy value for every tenant and provide it to that tenant as its API key.
 
 ```env
 API_KEY=your_visual_crossing_api_key
+AI_API_KEY=your_ai_provider_api_key
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-4o-mini
+TENANT_API_KEYS=acme=replace_with_a_unique_secret_of_at_least_32_characters
+PORT=8080
 ```
 
-The `.env` file is excluded from Git.
+`AI_BASE_URL` and `AI_MODEL` are optional; the values above are the defaults. The AI base URL must be an absolute HTTP(S) URL. `.env` is excluded from Git.
 
-Redis is expected to run on:
+## Run
 
-```text
-localhost:6379
-```
+Start Redis, configure the environment, then run:
 
-## Running
-
-Start Redis first, then run the service:
-
-```bash
+```powershell
 go run ./cmd/server
 ```
 
-The server will start on:
-
-```text
-http://localhost:8080
-```
+The server listens on `http://localhost:8080` by default; set `PORT` to override the port. `GET /healthz` is available for health checks.
 
 ## API
 
-### Get Weather
+All `/v1` routes require `Authorization: Bearer <tenant-api-key>`.
+
+### Get a forecast
 
 ```http
-GET /weather?city=Berlin
+GET /v1/weather?city=Berlin
+Authorization: Bearer <tenant-api-key>
 ```
 
-Example:
-
-```bash
-curl "http://localhost:8080/weather?city=Berlin"
-```
-
-On the first request for a city, the service retrieves the weather data from Visual Crossing and stores it in Redis.
-
-Subsequent requests for the same city are served from Redis until the 15-minute TTL expires.
-
-## Example Response
+The weather cache is shared by location and retained for 15 minutes. Example response:
 
 ```json
 {
   "address": "Berlin, Germany",
   "days": [
     {
-      "datetime": "2026-08-25",
-      "temp": 21.4,
+      "datetime": "2026-10-12",
+      "temp": 13.4,
       "conditions": "Partially cloudy"
     }
   ]
 }
 ```
 
-## Technologies
+### Generate business insights
 
-* Go
-* `net/http`
-* JSON
-* Redis
-* `github.com/redis/go-redis/v9`
-* Visual Crossing Weather API
-* `github.com/joho/godotenv`
+```http
+POST /v1/insights
+Authorization: Bearer <tenant-api-key>
+Content-Type: application/json
+```
 
-## What I Practiced
+Request:
 
-This project was created as a practical Go project to work with:
+```json
+{
+  "city": "Berlin",
+  "business_context": "We operate regional delivery routes and need to protect drivers and avoid late shipments."
+}
+```
 
-* HTTP clients and servers
-* REST APIs
-* JSON encoding and decoding
-* Redis and caching
-* Cache-aside pattern
-* Contexts and timeouts
-* Interfaces and dependency abstraction
-* Package separation
-* Error wrapping
-* Basic service-layer architecture
+`business_context` is optional and limited to 2,000 characters. The JSON request body is limited to 8 KB. Example response:
 
-## Project Reference
+```json
+{
+  "risk_level": "high",
+  "summary": "Heavy rain may disrupt some deliveries.",
+  "impacts": [
+    "Longer travel times on exposed routes"
+  ],
+  "recommendations": [
+    "Review dispatch timing and notify affected customers."
+  ]
+}
+```
 
-This project is based on the [Weather API Wrapper Service](https://roadmap.sh/projects/weather-api-wrapper-service) project from roadmap.sh.
+Risk levels are `low`, `moderate`, `high`, or `critical`. AI output is advisory and should be validated against operational requirements.
+
+### Legacy forecast endpoint
+
+`GET /weather?city=Berlin` remains available without tenant authentication for backward compatibility. It is not intended as the B2B integration surface; migrate clients to `/v1/weather`.
+
+## Architecture
+
+```text
+HTTP API
+  ├── legacy /weather
+  └── authenticated /v1 routes
+        ├── tenant bearer-key authentication
+        ├── service layer and Redis forecast cache
+        ├── Visual Crossing forecast client
+        └── OpenAI-compatible AI insight client
+```
+
+Weather provider and AI provider calls use request contexts and bounded HTTP timeouts. Provider errors are logged server-side and returned as generic API errors; provider credentials and response bodies are not returned to clients.
